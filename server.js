@@ -1,7 +1,9 @@
 const express = require('express');
+const cors = require('cors');
 const { Sequelize, DataTypes } = require('sequelize');
 
 const app = express();
+app.use(cors());  
 app.use(express.json());
 
 // SQLite (Render usa sistema de arquivos temporário)
