@@ -123,6 +123,34 @@ app.post('/api/books', async (req, res) => {
   }
 });
 
+// PUT - Atualizar livro existente
+app.put('/api/books/:id', async (req, res) => {
+  try {
+    const book = await Book.findByPk(req.params.id);
+    if (book) {
+      await book.update(req.body);
+      
+      // ← NOVO: Emite sinal para todos os usuários conectados
+      io.emit('atualizar-livros');
+      
+      res.status(200).json(book);
+    } else {
+      res.status(404).json({ error: 'Livro não encontrado' });
+    }
+  } catch (error) {
+    // Erros de validação do Sequelize
+    if (error.name === 'SequelizeValidationError') {
+      const messages = error.errors.map(err => err.message);
+      return res.status(400).json({ 
+        error: "Dados inválidos",
+        details: messages 
+      });
+    }
+    // Outros erros
+    res.status(400).json({ error: error.message });
+  }
+});
+
 // DELETE - Excluir um livro
 app.delete('/api/books/:id', async (req, res) => {
   try {
