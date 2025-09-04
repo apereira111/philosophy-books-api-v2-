@@ -1,19 +1,31 @@
+// ======================================
+// BIBLIOTECAS NECESSÁRIAS
+// ======================================
 const express = require('express');
 const cors = require('cors');
 const { Sequelize, DataTypes } = require('sequelize');
+const { createServer } = require('http');      // ← NOVO: Para criar servidor HTTP
+const { Server } = require('socket.io');      // ← NOVO: Para WebSockets
 
+// ======================================
+// CONFIGURAÇÃO DO APP
+// ======================================
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// SQLite (Render usa sistema de arquivos temporário)
+// ======================================
+// BANCO DE DADOS (SQLite)
+// ======================================
 const sequelize = new Sequelize({
   dialect: 'sqlite',
   storage: '/tmp/database.sqlite',
   logging: false
 });
 
-// Modelo de Livro (COM VALIDAÇÃO)
+// ======================================
+// MODELO DE LIVRO (COM VALIDAÇÃO)
+// ======================================
 const Book = sequelize.define('Book', {
   title: { 
     type: DataTypes.STRING, 
@@ -40,10 +52,43 @@ const Book = sequelize.define('Book', {
   }
 });
 
-// Sincronizar banco de dados
+// ======================================
+// SINCRONIZAR BANCO DE DADOS
+// ======================================
 sequelize.sync();
 
-// Rotas da API
+// ======================================
+// CONFIGURAÇÃO DO SERVIDOR COM WEBSOCKETS
+// ======================================
+const server = createServer(app);              // ← NOVO: Cria servidor HTTP
+const io = new Server(server, {                 // ← NOVO: Configura WebSockets
+  cors: {
+    origin: "*",                               // Permite qualquer origem
+    methods: ["GET", "POST"]                  // Métodos permitidos
+  }
+});
+
+// ======================================
+// COMUNICAÇÃO EM TEMPO REAL (WEBSOCKETS)
+// ======================================
+io.on('connection', (socket) => {
+  console.log('✅ Alguém se conectou via WebSocket!');
+  
+  // Quando receber sinal de novo livro
+  socket.on('novo-livro', () => {
+    console.log('📚 Novo livro adicionado, notificando todos...');
+    io.emit('atualizar-livros');               // Avisa todos os usuários
+  });
+  
+  // Quando alguém desconectar
+  socket.on('disconnect', () => {
+    console.log('❌ Alguém desconectou do WebSocket');
+  });
+});
+
+// ======================================
+// ROTAS DA API
+// ======================================
 
 // GET - Listar todos os livros
 app.get('/api/books', async (req, res) => {
@@ -59,6 +104,10 @@ app.get('/api/books', async (req, res) => {
 app.post('/api/books', async (req, res) => {
   try {
     const book = await Book.create(req.body);
+    
+    // ← NOVO: Emite sinal para todos os usuários conectados
+    io.emit('atualizar-livros');
+    
     res.status(201).json(book);
   } catch (error) {
     // Erros de validação do Sequelize
@@ -80,7 +129,11 @@ app.delete('/api/books/:id', async (req, res) => {
     const book = await Book.findByPk(req.params.id);
     if (book) {
       await book.destroy();
-      res.status(204).send(); // 204 No Content
+      
+      // ← NOVO: Emite sinal para todos os usuários conectados
+      io.emit('atualizar-livros');
+      
+      res.status(204).send();
     } else {
       res.status(404).json({ error: 'Livro não encontrado' });
     }
@@ -89,13 +142,17 @@ app.delete('/api/books/:id', async (req, res) => {
   }
 });
 
-// Health check para o Render
+// ======================================
+// HEALTH CHECK PARA O RENDER
+// ======================================
 app.get('/', (req, res) => {
-  res.send('Backend de livros funcionando!');
+  res.send('Backend de livros funcionando com WebSockets!');
 });
 
-// Iniciar servidor
+// ======================================
+// INICIAR SERVIDOR
+// ======================================
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => {
-  console.log(`Servidor rodando na porta ${PORT}`);
+server.listen(PORT, () => {                           // ← ALTERADO: server.listen em vez de app.listen
+  console.log(`🚀 Servidor com WebSockets rodando na porta ${PORT}`);
 });
