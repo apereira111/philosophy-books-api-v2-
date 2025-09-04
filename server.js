@@ -44,11 +44,18 @@ const Book = sequelize.define('Book', {
 sequelize.sync();
 
 // Rotas da API
+
+// GET - Listar todos os livros
 app.get('/api/books', async (req, res) => {
-  const books = await Book.findAll();
-  res.json(books);
+  try {
+    const books = await Book.findAll();
+    res.json(books);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
+// POST - Adicionar novo livro
 app.post('/api/books', async (req, res) => {
   try {
     const book = await Book.create(req.body);
@@ -64,6 +71,21 @@ app.post('/api/books', async (req, res) => {
     }
     // Outros erros
     res.status(400).json({ error: error.message });
+  }
+});
+
+// DELETE - Excluir um livro
+app.delete('/api/books/:id', async (req, res) => {
+  try {
+    const book = await Book.findByPk(req.params.id);
+    if (book) {
+      await book.destroy();
+      res.status(204).send(); // 204 No Content
+    } else {
+      res.status(404).json({ error: 'Livro não encontrado' });
+    }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 
